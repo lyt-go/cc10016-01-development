@@ -105,3 +105,21 @@ def bind_source(entry_id: int, payload: dict[str, object]) -> dict:
     if source_id is None:
         return {"ok": False, "error": "缺少source_id"}
     return service.bind_source(entry_id, int(source_id))
+
+
+@router.get("/access/records")
+def get_access_records() -> dict:
+    """读取采集源接入清单发布后同步过来的本批接入记录。"""
+    return {"ok": True, "entry": service.get_access_records()}
+
+
+@router.get("/access/by_source")
+def get_usable_seeds_by_source(source_code: str = Query(..., description="清单中的来源标识")) -> dict:
+    """种子管理按清单来源标识读取可继续使用的种子。"""
+    return service.get_usable_seeds_by_source(source_code)
+
+
+@router.get("/access/migrations")
+def get_migration_history() -> dict:
+    """重建批次后旧种子迁移历史回查。"""
+    return {"items": service.get_migration_history()}

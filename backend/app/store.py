@@ -30,6 +30,10 @@ class Store:
             "data_validate_reports": {},     # data_validate 校验报告
             "result_store_partitions": {},   # result_store 分区元数据
             "rate_limit_states": {},         # rate_limit 令牌桶状态
+            "access_manifest_cache": {},     # source_manifest 已发布清单缓存（按源标识）
+            "access_manifest_batches": {},   # source_manifest 批次归档（交接记录，可回查）
+            "seed_access_records": {},       # seed_config 本批接入记录（清单跨模块同步）
+            "seed_migration_history": [],    # seed_config 重建批次时旧种子迁移历史
         }
         # 模块间关系索引（外键映射）——基于 seed 数据自动构建
         self._relations: dict[str, list[dict[str, Any]]] = {
@@ -48,6 +52,8 @@ class Store:
             "source_to_render": [],    # crawl_source.id -> page_render
             "schedule_to_monitor": [], # crawl_schedule.id -> crawl_monitor
             "extract_to_convert": [],  # content_extract.id -> format_convert
+            "manifest_to_seed": [],    # source_manifest.id -> seed_config (清单条目与种子绑定)
+            "manifest_to_source": [],  # source_manifest.id -> crawl_source (清单条目与采集源绑定)
         }
         self._build_relations()
 
@@ -177,6 +183,15 @@ class Store:
     def find_all_by_field(self, module: str, field: str, value: Any) -> list[dict[str, Any]]:
         return [row for row in self.rows(module) if row.get(field) == value]
 
+    def delete_row(self, module: str, entry_id: int) -> bool:
+        """按主键删除一行，返回是否实际删除。"""
+        rows = self.rows(module)
+        remaining = [row for row in rows if int(row.get("id", 0)) != entry_id]
+        if len(remaining) == len(rows):
+            return False
+        self._tables[module] = remaining
+        return True
+
     def pipeline_state(self, key: str) -> Any:
         return self._pipeline_states.get(key)
 
@@ -185,6 +200,22 @@ class Store:
 
     def pipeline_states(self) -> dict[str, Any]:
         return dict(self._pipeline_states)
+
+    def snapshot(self) -> dict[str, Any]:
+        """事务快照：深拷贝表、关系索引与链路状态，供加工失败时整体回滚。"""
+        import copy
+        return {
+            "tables": copy.deepcopy(self._tables),
+            "relations": copy.deepcopy(self._relations),
+            "pipeline_states": copy.deepcopy(self._pipeline_states),
+        }
+
+    def restore(self, snap: dict[str, Any]) -> None:
+        """按事务快照恢复：保证导入中断后不会留下半套种子引用。"""
+        import copy
+        self._tables = copy.deepcopy(snap["tables"])
+        self._relations = copy.deepcopy(snap["relations"])
+        self._pipeline_states = copy.deepcopy(snap["pipeline_states"])
 
     def add_relation(self, relation_type: str, source_module: str, source_id: int,
                      target_module: str, target_id: int, meta: dict[str, Any] | None = None) -> None:

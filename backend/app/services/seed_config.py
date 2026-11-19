@@ -132,3 +132,35 @@ class SeedConfigService:
             return {"ok": False, "error": "种子不存在"}
         store.add_relation("source_to_seed", "crawl_source", source_id, MODULE, entry_id)
         return {"ok": True, "seed_id": entry_id, "source_id": source_id}
+
+    # ------------------------------------------------------------------
+    # 采集源接入清单跨模块衔接：清单发布后由种子管理读取并同步
+    # ------------------------------------------------------------------
+    def get_access_records(self) -> dict[str, Any]:
+        """读取本批接入记录（由采集源接入清单发布时写入）。"""
+        return store.pipeline_state("seed_access_records") or {}
+
+    def get_usable_seeds_by_source(self, source_code: str) -> dict[str, Any]:
+        """按清单中的来源标识读取可继续使用的种子。"""
+        records_state = self.get_access_records()
+        records = records_state.get("records", {}) if records_state else {}
+        record = records.get(source_code)
+        if record is None:
+            return {"ok": False, "error": f"来源标识 {source_code} 不在最新接入清单中", "来源标识": source_code}
+        seeds = []
+        for code in record.get("可用种子", []):
+            seed = store.find_by_field(MODULE, "种子编号", code)
+            if seed is not None:
+                seeds.append(dict(seed))
+        return {
+            "ok": True,
+            "来源标识": source_code,
+            "批次编号": record.get("批次编号"),
+            "种子集合版本": record.get("种子集合版本"),
+            "可用种子数量": record.get("可用种子数量"),
+            "items": seeds,
+        }
+
+    def get_migration_history(self) -> list[dict[str, Any]]:
+        """重建批次后旧种子迁移历史，供接入批次复核。"""
+        return list(store.pipeline_state("seed_migration_history") or [])

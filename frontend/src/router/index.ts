@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import Overview from '@/views/Overview.vue'
 const CrawlSource = () => import('@/views/crawl_source/index.vue')
+const SourceManifest = () => import('@/views/source_manifest/index.vue')
 const SeedConfig = () => import('@/views/seed_config/index.vue')
 const ParseRule = () => import('@/views/parse_rule/index.vue')
 const RateLimit = () => import('@/views/rate_limit/index.vue')
@@ -25,6 +26,7 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'overview', component: Overview },
     { path: '/crawl_source', name: 'crawl_source', component: CrawlSource },
+    { path: '/source_manifest', name: 'source_manifest', component: SourceManifest },
     { path: '/seed_config', name: 'seed_config', component: SeedConfig },
     { path: '/parse_rule', name: 'parse_rule', component: ParseRule },
     { path: '/rate_limit', name: 'rate_limit', component: RateLimit },
